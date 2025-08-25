@@ -1,0 +1,81 @@
+@font-face {
+    font-family: Nunito sans;
+    src: url(./font/NunitoSans-VariableFont_YTLC\,opsz\,wdth\,wght.ttf);
+}
+
+.navbar {
+    position: absolute;
+    width: 100%;
+    height: 5vw;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}
+
+#logo {
+    width: 10vw;
+    z-index: 2;
+}
+
+#titulo {
+    position: absolute;
+    top: 5vw;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-family: Nunito sans;
+    font-size: 1.5vw;
+}
+
+.filtro {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 5vw;
+    top: 10vw;
+    left: 10%;
+    width: 80%;
+    height: 5vw;
+    border-radius: 0.3vw;
+    box-shadow: 0px 0px 15px 5px rgb(242, 242, 242);
+}
+
+#filtro-titulo {
+    margin-left: 3vw;
+    font-size: 1vw;
+    font-family: Nunito sans;
+    color: #d9d9d9;
+}
+
+#sede, #datepicker {
+    border: none;
+    border-bottom: 0.1vw solid black;
+    width: 14vw;
+    font-family: Nunito sans;
+    font-size: 1vw;
+    outline: none;
+}
+
+#buscar {
+    position: absolute;
+    display: flex;
+    left: 10%;
+    top: 16vw;
+    border: none;
+    border-bottom: 0.1vw solid black;
+    width: 80%;
+    height: 2.5vw;
+    font-family: Nunito sans;
+    font-size: 1vw;
+    text-indent: 3vw;
+    outline: none;
+}
+
+#lupa {
+    position: absolute;
+    top: 16.2vw;
+    left: 10.5vw;
+    width: 2vw;
+}
