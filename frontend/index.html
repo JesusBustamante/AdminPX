@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/litepicker.js"></script>
+</head>
+
+<body>
+
+    <div class="navbar">
+        <img id="logo" src="./img/Logo-Prexxa.png" alt="">
+    </div>
+
+    <h2 id="titulo">BIENVENIDO ADMINISTRADOR</h2>
+
+    <div class="filtro">
+        <p id="filtro-titulo">Filtrar por:</p>
+
+        <select name="sede" id="sede">
+            <option value="" selected disabled>Sede</option>
+            <option value="sabaneta">Colombia-Antioquia-Sabaneta-SEDE-PX-1</option>
+            <option value="la_estrella">Colombia-Antioquia-La Estrella-SEDE-PX-1</option>
+        </select>
+
+        <input id="datepicker" type="text" placeholder="Selecciona un rango de fecha">
+        <script>
+            new Litepicker({
+                element: document.getElementById('datepicker'),
+                singleMode: false
+            });
+        </script>
+    </div>
+
+    <input type="text" id="buscarr" placeholder="Nombre o Documento">
+    <label for="buscarr">
+        <img id="lupa" src="./img/icons/search.png" alt="">
+    </label>
+
+    <div class="controls">
+        <input id="q" placeholder="Buscar por nombre..." />
+        <button id="buscar">Buscar</button>
+        <button id="limpiar">Limpiar</button>
+    </div>
+
+    <div class="pager">
+        <button id="prev">Anterior</button>
+        <button id="next">Siguiente</button>
+        <span id="pageInfo">&nbsp;</span>
+        <span>Por página:
+            <select id="pageSize">
+                <option>10</option>
+                <option selected>20</option>
+                <option>50</option>
+                <option>100</option>
+            </select>
+        </span>
+    </div>
+
+    <div id="lista">Cargando…</div>
+
+    </div>
+
+</body>
+<script src="./script.js"></script>
+
+
+</html>
