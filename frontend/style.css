@@ -29,79 +29,66 @@
     font-size: 1.5vw;
 }
 
-.filtro {
+#datepicker {
     position: absolute;
-    display: flex;
-    align-items: center;
-    gap: 5vw;
     top: 10vw;
-    left: 10%;
-    width: 80%;
-    height: 5vw;
-    border-radius: 0.3vw;
-    box-shadow: 0px 0px 15px 5px rgb(242, 242, 242);
-}
-
-#filtro-titulo {
-    margin-left: 3vw;
-    font-size: 1vw;
-    font-family: Nunito sans;
-    color: #d9d9d9;
-}
-
-#sede, #datepicker {
-    border: none;
-    border-bottom: 0.1vw solid black;
-    width: 14vw;
+    right: 1vw;
+    cursor: pointer;
+    width: 15%;
+    height: 2.5vw;
     font-family: Nunito sans;
     font-size: 1vw;
     outline: none;
+    text-indent: 1vw;
+    border-radius: 0.3vw;
+    border: 0.1vw solid black;
 }
 
-#buscarr {
+#q {
     position: absolute;
     display: flex;
-    left: 10%;
-    top: 16vw;
-    border: none;
-    border-bottom: 0.1vw solid black;
+    align-items: center;
+    left: 1vw;
+    top: 10vw;
     width: 80%;
     height: 2.5vw;
     font-family: Nunito sans;
     font-size: 1vw;
     text-indent: 3vw;
     outline: none;
+    border-radius: 0.3vw;
+    border: 0.1vw solid black;
 }
 
 #lupa {
     position: absolute;
-    top: 16.2vw;
-    left: 10.5vw;
+    top: 10.4vw;
+    left: 2%;
     width: 2vw;
-}
-
-#lista {
-    position: absolute;
-    width: 80%;
-    height: fit-content;
-    top: 24vw;
-    left: 10%;
-}
-
-.item {
-    border: 0.1vw solid black;
 }
 
 .pager {
     position: absolute;
-    top: 20vw;
-    left: 10%;
-    width: 80%;
+    top: 15vw;
+    left: 0;
+    width: 100%;
     font-size: 1vw;
     font-family: Nunito sans;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-#prev, #next {
+.botones {
+    margin-left: 1vw;
+}
+
+#x-pag {
+    margin-right: 1vw;
+}
+
+#prev,
+#next {
     cursor: pointer;
     padding: 0.6vw;
     border: 0.1vw solid black;
@@ -111,11 +98,162 @@
     font-family: Nunito sans;
 }
 
-#q {
-    position: absolute;
-    left: 10vw;
+#pageSize {
+    font-size: 1vw;
+    font-family: Nunito sans;
 }
 
-#buscar {
+#lista {
+    width: 80%;
+    height: fit-content;
+
+}
+
+.item {
+    display: flex;
+    gap: 3vw;
+    border-radius: 0.3vw;
+    padding: 0.5vw;
+    font-size: 1vw;
+    font-family: Nunito sans;
+}
+
+html,
+body {
+    overflow-x: hidden;
+}
+
+.table-shell {
     position: absolute;
+    top: 18vw;
+    width: 100%;
+    bottom: 0;
+    border-radius: 0.5vw;
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.table-shell::-webkit-scrollbar {
+  display: none;
+}
+
+.tabla {
+    font-size: 0.8vw;
+    font-family: Nunito sans;
+    border-collapse: collapse;
+    width: max-content;
+}
+
+.tabla th,
+.tabla td {
+    padding: 8px 10px;
+    border: 0.1vw solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.tabla thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #ed6b07;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .05);
+}
+
+.tabla th,
+.tabla td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.tabla td {
+    cursor: pointer;
+}
+
+.tabla th {
+    background-color: #ed6b07;
+}
+
+.tabla tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.tabla tr:hover {
+    background-color: #eef2ff;
+}
+
+#act-columna {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}
+
+#edit-logo,
+#delete-logo {
+    width: 1.5vw;
+}
+
+#edit-boton,
+#delete-boton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2vw;
+    height: 2vw;
+    cursor: pointer;
+    border-radius: 0.3vw;
+    border: none;
+    border: 0.1vw solid gray;
+    background: yellow;
+}
+
+#delete-boton {
+    background: red;
+}
+
+/* ----------------------------------------------------------------------------- */
+
+td.ro {
+    background: #fafafa;
+    color: #666;
+}
+
+td[contenteditable="true"] {
+    cursor: text;
+}
+
+td[contenteditable="true"]:focus {
+    outline: 2px solid #3b82f6;
+    background: #eef6ff;
+}
+
+td.saving {
+    position: relative;
+}
+
+td.saving::after {
+    content: '⏳';
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+td.saved {
+    animation: flash 0.6s ease;
+}
+
+@keyframes flash {
+    from {
+        background: #d1fae5;
+    }
+
+    to {
+        background: transparent;
+    }
+}
+
+td.error {
+    outline: 2px solid #ef4444 !important;
+    background: #fee2e2 !important;
 }
