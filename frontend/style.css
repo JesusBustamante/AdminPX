@@ -213,47 +213,11 @@ body {
 
 /* ----------------------------------------------------------------------------- */
 
-td.ro {
-    background: #fafafa;
-    color: #666;
-}
-
-td[contenteditable="true"] {
-    cursor: text;
-}
-
-td[contenteditable="true"]:focus {
-    outline: 2px solid #3b82f6;
-    background: #eef6ff;
-}
-
-td.saving {
-    position: relative;
-}
-
-td.saving::after {
-    content: '⏳';
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-td.saved {
-    animation: flash 0.6s ease;
-}
-
-@keyframes flash {
-    from {
-        background: #d1fae5;
-    }
-
-    to {
-        background: transparent;
-    }
-}
-
-td.error {
-    outline: 2px solid #ef4444 !important;
-    background: #fee2e2 !important;
-}
+td.ro { background:#fafafa; color:#666; }
+td.selected { outline: 2px solid #94a3b8; }
+td.editing { outline: 2px solid #3b82f6; background:#eef6ff; }
+td.saving { position:relative; }
+td.saving::after { content:'⏳'; position:absolute; right:6px; top:50%; transform:translateY(-50%); }
+td.saved { animation: flash 0.6s ease; }
+@keyframes flash { from{ background:#d1fae5; } to{ background:transparent; } }
+td.error { outline:2px solid #ef4444 !important; background:#fee2e2 !important; }

@@ -38,9 +38,9 @@ const btnNext = document.getElementById('next');
 const selPageSize = document.getElementById('pageSize');
 const inputQ = document.getElementById('q');
 
-  // estado global de filtros
-  let dateFrom = '';
-  let dateTo = '';
+// estado global de filtros
+let dateFrom = '';
+let dateTo = '';
 
 async function cargar(q = '') {
   lista.textContent = 'Cargando…';
@@ -75,24 +75,25 @@ async function cargar(q = '') {
         const tr = document.createElement('tr');
         tr.dataset.cc = it.cc;
         tr.innerHTML = `
-          <td data-field="cc"              class="ro">${it.cc ?? ''}</td>
-          <td data-field="nombres"         contenteditable="true">${it.nombres ?? ''}</td>
-          <td data-field="actividad"       contenteditable="true">${it.actividad ?? ''}</td>
-          <td data-field="sede"            contenteditable="true">${it.sede ?? ''}</td>
-          <td data-field="fecha_inicio"    contenteditable="true">${it.fecha_inicio ?? ''}</td>
-          <td data-field="fecha_final"     contenteditable="true">${it.fecha_final ?? ''}</td>
-          <td data-field="hora_inicio"     contenteditable="true">${it.hora_inicio ?? ''}</td>
-          <td data-field="hora_final"      contenteditable="true">${it.hora_final ?? ''}</td>
-          <td data-field="no_op"           contenteditable="true">${it.no_op ?? ''}</td>
-          <td data-field="sci_ref"         contenteditable="true">${it.sci_ref ?? ''}</td>
-          <td data-field="descripcion_referencia" contenteditable="true">${it.descripcion_referencia ?? ''}</td>
-          <td data-field="estado_sci"      contenteditable="true">${it.estado_sci ?? ''}</td>
-          <td data-field="cantidad"        contenteditable="true">${it.cantidad ?? ''}</td>
-          <td data-field="area"            contenteditable="true">${it.area ?? ''}</td>
-          <td data-field="maquina"         contenteditable="true">${it.maquina ?? ''}</td>
-          <td data-field="horario"         contenteditable="true">${it.horario ?? ''}</td>
-          <td data-field="observaciones"   contenteditable="true">${it.observaciones ?? ''}</td>
+          <td data-field="cc"              class="ro" tabindex="0">${it.cc ?? ''}</td>
+          <td data-field="nombres"         tabindex="0">${it.nombres ?? ''}</td>
+          <td data-field="sede"            tabindex="0">${it.sede ?? ''}</td>
+          <td data-field="no_op"           tabindex="0">${it.no_op ?? ''}</td>
+          <td data-field="sci_ref"         tabindex="0">${it.sci_ref ?? ''}</td>
+          <td data-field="descripcion_referencia" tabindex="0">${it.descripcion_referencia ?? ''}</td>
+          <td data-field="fecha_inicio"    tabindex="0">${it.fecha_inicio ?? ''}</td>
+          <td data-field="hora_inicio"     tabindex="0">${it.hora_inicio ?? ''}</td>
+          <td data-field="fecha_final"     tabindex="0">${it.fecha_final ?? ''}</td>
+          <td data-field="hora_final"      tabindex="0">${it.hora_final ?? ''}</td>
+          <td data-field="actividad"       tabindex="0">${it.actividad ?? ''}</td>
+          <td data-field="cantidad"        tabindex="0">${it.cantidad ?? ''}</td>
+          <td data-field="estado_sci"      tabindex="0">${it.estado_sci ?? ''}</td>
+          <td data-field="area"            tabindex="0">${it.area ?? ''}</td>
+          <td data-field="maquina"         tabindex="0">${it.maquina ?? ''}</td>
+          <td data-field="horario"         tabindex="0">${it.horario ?? ''}</td>
+          <td data-field="observaciones"   tabindex="0">${it.observaciones ?? ''}</td>
         `;
+
         lista.appendChild(tr);
       });
 
@@ -123,10 +124,10 @@ const lp = new Litepicker({
 // cuando el usuario selecciona rango
 lp.on('selected', (date1, date2) => {
   // formatea; si tu build no soporta .format, usa toISOString().slice(0,10)
-  const fmt = d => (typeof d?.format === 'function' ? d.format('YYYY-MM-DD') : new Date(d).toISOString().slice(0,10));
+  const fmt = d => (typeof d?.format === 'function' ? d.format('YYYY-MM-DD') : new Date(d).toISOString().slice(0, 10));
 
   dateFrom = date1 ? fmt(date1) : '';
-  dateTo   = date2 ? fmt(date2) : '';
+  dateTo = date2 ? fmt(date2) : '';
 
   offset = 0;
   cargar(inputQ.value.trim());
@@ -143,75 +144,129 @@ document.getElementById('datepicker').addEventListener('input', (e) => {
 });
 
 // util GQL
+function placeCaretEnd(el) {
+  const range = document.createRange();
+  const sel = window.getSelection();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 async function mutateUpdate(cc, patch) {
   const m = `
     mutation ($cc: ID!, $patch: FormularioPatch!) {
-      updateFormulario(cc: $cc, patch: $patch) {
-        cc
-      }
+      updateFormulario(cc: $cc, patch: $patch) { cc }
     }
   `;
   await gql(m, { cc, patch });
 }
 
-function attachInlineEditing() {
-  // guarda el valor original al entrar
-  lista.querySelectorAll('td[contenteditable="true"]').forEach(td => {
-    td.addEventListener('focus', () => {
-      td.dataset.orig = td.textContent.trim();
-      td.classList.remove('error');
-    });
+function enableEdit(td) {
+  if (td.classList.contains('ro')) return; // no editable
+  if (td.isContentEditable) return;
 
-    // Enter = guardar; Esc = cancelar
-    td.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault(); // evita salto de línea
-        td.blur();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        td.textContent = td.dataset.orig || '';
-        td.blur();
-      }
-    });
-
-    // Al salir: si cambió, dispara mutation
-    td.addEventListener('blur', async () => {
-      const orig = (td.dataset.orig || '').trim();
-      const val = td.textContent.trim();
-      if (val === orig) return; // nada que hacer
-
-      const tr = td.closest('tr');
-      const cc = tr?.dataset.cc;
-      const field = td.dataset.field;
-
-      // validaciones básicas en cliente (ejemplo cantidad y fechas)
-      try {
-        if (field === 'cantidad' && val !== '' && isNaN(Number(val))) {
-          throw new Error('Debe ser numérico');
-        }
-        // (opcional) valida formato YYYY-MM-DD para fecha_* y HH:mm para hora_*
-
-        // estado visual: guardando…
-        td.classList.add('saving');
-
-        const patch = {};
-        patch[field] = val === '' ? null : (field === 'cantidad' ? Number(val) : val);
-
-        await mutateUpdate(cc, patch);
-
-        td.classList.remove('saving');
-        td.classList.add('saved');
-        setTimeout(() => td.classList.remove('saved'), 600);
-      } catch (err) {
-        console.error('Update error:', err);
-        td.classList.remove('saving');
-        td.classList.add('error');
-        // revierte
-        td.textContent = orig;
-      }
-    });
-  });
+  td.dataset.orig = td.textContent.trim();
+  td.contentEditable = 'true';
+  td.focus();
+  placeCaretEnd(td);
+  td.classList.add('editing');
 }
+
+function disableEdit(td) {
+  td.contentEditable = 'false';
+  td.classList.remove('editing');
+}
+
+function attachInlineEditingDblClick() {
+  // selección visual en click (sin editar)
+  lista.addEventListener('click', (e) => {
+    const td = e.target.closest('td');
+    if (!td) return;
+    lista.querySelectorAll('td.selected').forEach(c => c.classList.remove('selected'));
+    td.classList.add('selected');
+  });
+
+  // entrar a edición con doble click
+  lista.addEventListener('dblclick', (e) => {
+    const td = e.target.closest('td');
+    if (!td) return;
+    enableEdit(td);
+  });
+
+  // F2 para entrar a edición en la celda enfocada
+  lista.addEventListener('keydown', (e) => {
+    const td = e.target.closest('td');
+    if (!td) return;
+    if (e.key === 'F2' && !td.isContentEditable) {
+      e.preventDefault();
+      enableEdit(td);
+    }
+    // Navegación básica con Enter si NO está editable: entra a edición
+    if (e.key === 'Enter' && !td.isContentEditable) {
+      e.preventDefault();
+      enableEdit(td);
+    }
+  });
+
+  // Teclas dentro de la celda editable
+  lista.addEventListener('keydown', (e) => {
+    const td = e.target.closest('td[contenteditable="true"]');
+    if (!td) return;
+
+    if (e.key === 'Enter') {          // guardar
+      e.preventDefault();
+      td.blur();
+    } else if (e.key === 'Escape') {  // cancelar
+      e.preventDefault();
+      td.textContent = td.dataset.orig || '';
+      td.blur();
+    }
+  });
+
+  // Blur = commit/cancel según cambios
+  lista.addEventListener('blur', async (e) => {
+    const td = e.target.closest('td[contenteditable="true"]');
+    if (!td) return;
+
+    const orig = (td.dataset.orig || '').trim();
+    const val  = td.textContent.trim();
+    const field = td.dataset.field;
+    const tr = td.closest('tr');
+    const cc = tr?.dataset.cc;
+
+    // sale del modo edición
+    disableEdit(td);
+
+    if (val === orig) return; // sin cambios
+
+    try {
+      // validaciones mínimas
+      if (field === 'cantidad' && val !== '' && isNaN(Number(val))) {
+        throw new Error('Debe ser numérico');
+      }
+
+      td.classList.add('saving');
+      const patch = {};
+      patch[field] = (val === '' ? null : field === 'cantidad' ? Number(val) : val);
+      await mutateUpdate(cc, patch);
+
+      td.classList.remove('saving');
+      td.classList.add('saved');
+      setTimeout(() => td.classList.remove('saved'), 600);
+    } catch (err) {
+      console.error('Update error:', err);
+      td.classList.remove('saving');
+      td.classList.add('error');
+      td.textContent = orig; // revertir
+      setTimeout(() => td.classList.remove('error'), 800);
+    }
+  }, true); // usar capture para asegurar el blur
+}
+
+// Llama esto cada vez que renders tu tabla
+attachInlineEditingDblClick();
+
 
 // Debounce: dispara 300ms después de dejar de escribir
 let debounceId;
