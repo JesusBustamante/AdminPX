@@ -1,3 +1,4 @@
+// backend/bd/schema.js (ESM)
 export const typeDefs = /* GraphQL */ `
   scalar Date
 
@@ -46,7 +47,15 @@ export const typeDefs = /* GraphQL */ `
     total: Int!
   }
 
+  # === Tipos para Control OP ===
+  type RefRow {
+    op: String!
+    sci: String!
+    descripcion: String!
+  }
+
   type Query {
+    # Lista/paginación principal (T_Dim_Formulario2)
     formularios(
       limit: Int = 50
       offset: Int = 0
@@ -54,7 +63,13 @@ export const typeDefs = /* GraphQL */ `
       dateFrom: String   # YYYY-MM-DD
       dateTo: String     # YYYY-MM-DD
     ): FormulariosResult!
+
     formulario(cc: ID!): Formulario
+
+    # === Autocompletados/relaciones desde T_Ctrol_OP ===
+    buscarOpsExcel(prefix: String!, limit: Int = 10): [String!]!
+    buscarSciPorOp(op: String!, prefix: String, limit: Int = 10): [String!]!
+    refPorOpSci(op: String!, sci: String!): RefRow
   }
 
   type Mutation {

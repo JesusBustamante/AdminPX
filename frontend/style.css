@@ -32,7 +32,7 @@
 #datepicker {
     position: absolute;
     top: 10vw;
-    right: 1vw;
+    right: 12vw;
     cursor: pointer;
     width: 15%;
     height: 2.5vw;
@@ -50,7 +50,7 @@
     align-items: center;
     left: 1vw;
     top: 10vw;
-    width: 80%;
+    width: 70%;
     height: 2.5vw;
     font-family: Nunito sans;
     font-size: 1vw;
@@ -58,6 +58,21 @@
     outline: none;
     border-radius: 0.3vw;
     border: 0.1vw solid black;
+}
+
+#limpiarfiltros {
+    position: absolute;
+    top: 10vw;
+    right: 1vw;
+    cursor: pointer;
+    width: 8%;
+    height: 2.5vw;
+    font-family: Nunito sans;
+    font-size: 1vw;
+    outline: none;
+    border-radius: 0.3vw;
+    border: 0.1vw solid black;
+    background: #ed6b07;
 }
 
 #lupa {
@@ -221,3 +236,66 @@ td.saving::after { content:'⏳'; position:absolute; right:6px; top:50%; transfo
 td.saved { animation: flash 0.6s ease; }
 @keyframes flash { from{ background:#d1fae5; } to{ background:transparent; } }
 td.error { outline:2px solid #ef4444 !important; background:#fee2e2 !important; }
+
+/* ----------------------------------------------------------------------------- */
+
+.sede-select, .actividad-select, .horario-select, .observaciones-select {
+    border: none;
+    font-size: 0.8vw;
+    font-family: Nunito sans;
+    background: transparent;
+}
+
+/* ----------------------------------------------------------------------------- */
+
+td.editing { padding: 0; }
+.cell-input {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 0;
+  padding: 6px 8px;
+  font: inherit;
+  outline: 2px solid #3b82f6;
+  background: #eef6ff;
+}
+td.saving { position: relative; }
+td.saving::after { content:'⏳'; position:absolute; right:6px; top:50%; transform:translateY(-50%); }
+td.saved { animation: flash 0.6s ease; }
+@keyframes flash { from{ background:#d1fae5; } to{ background:transparent; } }
+td.error { outline:2px solid #ef4444 !important; background:#fee2e2 !important; }
+
+
+/* ----------------------------------------------------------------------------- */
+
+/* Añade esto a tu archivo de estilos */
+.suggestions-box {
+  background-color: white;
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  position: absolute;
+  width: calc(100% - 2px); /* Ajusta al ancho del input */
+  z-index: 10000;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.sugg-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.sugg-item:hover {
+  background-color: #f0f0f0;
+}
+
+.sugg-empty {
+  padding: 8px 12px;
+  color: #888;
+  font-style: italic;
+}
+
+/* Asegúrate de que el contenedor del editor permita que las sugerencias se muestren fuera de sus límites */
+.op-sci-box {
+    position: relative;
+}

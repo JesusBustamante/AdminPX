@@ -17,7 +17,7 @@
 
     <h2 id="titulo">BIENVENIDO ADMINISTRADOR</h2>
 
-    <input id="datepicker" type="text" placeholder="Selecciona un rango de fecha">
+    <input id="datepicker" type="text" placeholder="Selecciona un rango de fecha" readonly>
 
     <script>
         new Litepicker({
@@ -30,6 +30,8 @@
     <label for="q">
         <img id="lupa" src="./img/icons/search.png" alt="">
     </label>
+
+    <button id="limpiarfiltros">Quitar filtros</button>
 
     <div class="pager">
         <div class="botones">
@@ -53,8 +55,8 @@
         <table id="grid" class="tabla">
             <thead>
                 <tr>
-                    <th>CC</th>
-                    <th>Nombre</th>
+                    <th id="celdath-cc">CC</th>
+                    <th id="celdath-nombre">Nombre</th>
                     <th>Actividad</th>
                     <th>Sede</th>
                     <th>Fecha inicial</th>
@@ -74,7 +76,7 @@
             </thead>
             <tbody id="lista"></tbody>
         </table>
-
+        
     </div>
 
 </body>
