@@ -3,6 +3,61 @@ const GQL = '/graphql';
 // AbortController para cancelar la petición anterior si el usuario sigue tecleando
 let currentAbort;
 
+// ----------- Validación de fecha y hora -----------------
+
+/**
+ * Valida el rango completo de fecha/hora de una fila.
+ * Marca las celdas con error si la validación falla.
+ * @param {HTMLTableRowElement} tr - La fila <tr> que se está validando.
+ * @param {string} campoActual - El 'data-field' del campo que se acaba de editar.
+ * @param {string} valorNuevo - El nuevo valor para el campo que se acaba de editar.
+ * @returns {boolean} - 'true' si es válido, 'false' si no.
+ */
+function validarRangoFechaHora(tr, campoActual, valorNuevo) {
+  // 1. Referencias a las 4 celdas de fecha/hora
+  const tdFi = tr.querySelector('td[data-field="fecha_inicio"]');
+  const tdHi = tr.querySelector('td[data-field="hora_inicio"]');
+  const tdFf = tr.querySelector('td[data-field="fecha_final"]');
+  const tdHf = tr.querySelector('td[data-field="hora_final"]');
+
+  // Limpia errores previos en las 4 celdas
+  [tdFi, tdHi, tdFf, tdHf].forEach(td => td.classList.remove('error'));
+
+  // 2. Obtiene los 4 valores, usando el valor nuevo para el campo que se está editando
+  const fi = campoActual === 'fecha_inicio' ? valorNuevo : tdFi.textContent.trim();
+  const hi = campoActual === 'hora_inicio' ? valorNuevo : tdHi.textContent.trim();
+  const ff = campoActual === 'fecha_final' ? valorNuevo : tdFf.textContent.trim();
+  const hf = campoActual === 'hora_final' ? valorNuevo : tdHf.textContent.trim();
+
+  // Si falta algún dato, la validación pasa por ahora (se validará el no-vacío en otra parte)
+  if (!fi || !hi || !ff || !hf) return true;
+
+  // 3. Crea los objetos Date para comparar
+  const start = new Date(`${fi}T${hi}`);
+  const end = new Date(`${ff}T${hf}`);
+
+  // 4. Ejecuta las validaciones
+  if (end <= start) {
+    console.error('Validation Error: La fecha final debe ser mayor que la inicial.');
+    tdFf.classList.add('error');
+    tdHf.classList.add('error');
+    return false; // No es válido
+  }
+
+  const diffHoras = (end - start) / 3600000; // 36e5 es 3600000
+  if (diffHoras > 14) {
+    console.error('Validation Error: El rango no puede superar las 14 horas.');
+    tdFf.classList.add('error');
+    tdHf.classList.add('error');
+    return false; // No es válido
+  }
+
+  // 5. Si todo está bien, devuelve true
+  return true;
+}
+
+// --------------------------------------------------------
+
 async function gql(query, variables = {}) {
   if (currentAbort) currentAbort.abort();
   currentAbort = new AbortController();
@@ -129,7 +184,7 @@ function startCellEdit(td) {
 
   const field = td.dataset.field;
   const tr = td.closest('tr');
-  const cc = tr?.dataset.cc;
+  const cc = tr?.dataset.id;
   if (!cc || td.classList.contains('ro') || td.querySelector('input')) return;
 
   const isDate = field === 'fecha_inicio' || field === 'fecha_final';
@@ -155,7 +210,7 @@ function startCellEdit(td) {
   } else if (isNumber) {
     input.value = originalText === '' ? '' : String(originalText);
     input.min = '0';              // sin negativos
-    input.step = '1';             // enteros (cambia a 'any' si quieres decimales)
+    input.step = 'any';
     input.inputMode = 'numeric';
   } else {
     input.value = originalText;
@@ -236,8 +291,10 @@ function startCellEdit(td) {
 
   async function commit() {
     const val = input.value.trim();
+    const tr = td.closest('tr');
+    const id = tr?.dataset.id;
 
-    // 🚨 Validación común: no permitir vacío en ningún campo
+    // Validación común: no permitir vacío en ningún campo
     if (!val) {
       markErrorAndRefocus();
       return;
@@ -255,16 +312,30 @@ function startCellEdit(td) {
       newDisplay = String(num); // normaliza
     }
 
-    // Validación constraints nativos (date min/max, time min/max)
+    // Validación de constraints nativos (date min/max, time min/max)
     if (!input.checkValidity()) {
       markErrorAndRefocus();
       return;
     }
 
+    // --- INICIO DE LA VALIDACIÓN DE RANGO ---
+    // Si el campo que se editó es una fecha o una hora, valida el rango completo.
+    if (isDate || isTime) {
+      const esRangoValido = validarRangoFechaHora(tr, field, newDisplay);
+      if (!esRangoValido) {
+        // La función validarRangoFechaHora ya marcó los errores visualmente.
+        // Cancelamos la edición para revertir el texto de la celda actual.
+        cancel();
+        return; // Detiene el proceso de guardado
+      }
+    }
+    // --- FIN DE LA VALIDACIÓN DE RANGO ---
+
+    // Si todas las validaciones pasan, procede a guardar
     td.classList.add('saving');
     try {
       const payload = isNumber ? Number(newDisplay) : newDisplay;
-      await mutateUpdate(cc, { [field]: payload });
+      await mutateUpdate(id, { [field]: payload });
       td.classList.remove('saving');
       td.classList.add('saved');
       setTimeout(() => td.classList.remove('saved'), 600);
@@ -301,22 +372,28 @@ function startCellEdit(td) {
 // Canonizamos valores/labels para guardar
 const ESTADO_A = { value: 'En proceso', label: 'En proceso' };
 const ESTADO_B = { value: 'Finalizado', label: 'Finalizado' };
+const ESTADO_C = { value: 'N/A', label: 'N/A' };
 
-// función util para pintar el select con la opción opuesta
 function renderEstadoSelect(valorBD) {
+  // Si el valor es "N/A", retorna un select deshabilitado.
+  if (normText(valorBD) === 'n/a') {
+    return `
+      <select class="estado-select" data-field="estado_sci" disabled>
+        <option selected>N/A</option>
+      </select>
+    `;
+  }
 
+  // Si no es "N/A", ejecuta la lógica normal para crear el select editable.
   const n = normText(valorBD);
-
   const isProceso = n.includes('en proceso') || n.includes('proceso');
   const isFinalizado = n.includes('finalizado');
 
-  /// Armamos SIEMPRE ambas opciones; marcamos selected según lo detectado
-  const optionA = `<option value="${ESTADO_A.value}" ${isProceso ? 'selected' : ''}>${ESTADO_A.label}</option>`;
-  const optionB = `<option value="${ESTADO_B.value}" ${isFinalizado ? 'selected' : ''}>${ESTADO_B.label}</option>`;
+  const optionA = `<option value="En proceso" ${isProceso ? 'selected' : ''}>En proceso</option>`;
+  const optionB = `<option value="Finalizado" ${isFinalizado ? 'selected' : ''}>Finalizado</option>`;
 
-  // Si no reconoce ninguna, no marcamos selected (el usuario elegirá)
   return `
-    <select class="sede-select" data-field="estado_sci">
+    <select class="estado-select" data-field="estado_sci">
       ${optionA}
       ${optionB}
     </select>
@@ -340,16 +417,27 @@ const HORARIOS = [
   "Horario L (14:15 - 22:15)",
   "Horario M (10:00 - 18:00)",
   "Horario N (12:00 - 22:00)",
-  "Horario O (08:00 - 16:00)"
+  "Horario O (08:00 - 16:00)",
+  "N/A"
 ];
 
-function renderHorarioSelect(valorBD) {
-  const n = normText(valorBD);
+// EN: script.js
 
-  // detecta si el valor está en la lista canónica
+// ✅ REEMPLAZA tu función 'renderHorarioSelect' con esta versión
+function renderHorarioSelect(valorBD) {
+  // Si el valor es "N/A", retorna un select deshabilitado.
+  if (normText(valorBD) === 'n/a') {
+    return `
+      <select class="horario-select" data-field="horario" disabled>
+        <option selected>N/A</option>
+      </select>
+    `;
+  }
+
+  // Si no es "N/A", ejecuta la lógica normal para crear el select editable.
+  const n = normText(valorBD);
   const current = HORARIOS.find(act => normText(act) === n);
 
-  // construye opciones, marcando la actual como selected
   return `
     <select class="horario-select" data-field="horario">
       ${HORARIOS.map(act => `
@@ -370,16 +458,23 @@ const OBSERVACION = [
   "Paro por otras actividades",
   "Falta de programación",
   "Reproceso",
-  "N / A"
+  "N/A"
 ];
 
 function renderObservacionSelect(valorBD) {
-  const n = normText(valorBD);
+  // Si el valor es "N/A", retorna un select deshabilitado.
+  if (normText(valorBD) === 'n/a') {
+    return `
+      <select class="observaciones-select" data-field="observaciones" disabled>
+        <option selected>N/A</option>
+      </select>
+    `;
+  }
 
-  // detecta si el valor está en la lista canónica
+  // Si no es "N/A", ejecuta la lógica normal para crear el select editable.
+  const n = normText(valorBD);
   const current = OBSERVACION.find(act => normText(act) === n);
 
-  // construye opciones, marcando la actual como selected
   return `
     <select class="observaciones-select" data-field="observaciones">
       ${OBSERVACION.map(act => `
@@ -391,6 +486,10 @@ function renderObservacionSelect(valorBD) {
 }
 
 async function cargar(q = '') {
+
+  // GUARDA LA POSICIÓN ACTUAL DEL SCROLL
+  const scrollY = window.scrollY;
+  
   lista.textContent = 'Cargando…';
 
   const query = `
@@ -399,7 +498,7 @@ async function cargar(q = '') {
         total
         count
         items {
-          cc nombres sede no_op sci_ref descripcion_referencia
+          id cc nombres sede no_op sci_ref descripcion_referencia
           fecha_inicio hora_inicio fecha_final hora_final
           actividad estado_sci cantidad area maquina horario observaciones
         }
@@ -419,8 +518,10 @@ async function cargar(q = '') {
     } else {
       items.forEach(it => {
         const tr = document.createElement('tr');
+        tr.dataset.id = it.id;
         tr.dataset.cc = it.cc;
         tr.innerHTML = `
+          <td data-field="id" class="ro">${it.id ?? ''}</td>
           <td id="celda-cc" data-field="cc"              class="ro" tabindex="0">${it.cc ?? ''}</td>
           <td id="celda-nombre" data-field="nombres"         class="ro" tabindex="0">${it.nombres ?? ''}</td>
           <td data-field="actividad"       tabindex="0">${renderActividadSelect(it.actividad)}</td>
@@ -429,13 +530,13 @@ async function cargar(q = '') {
           <td data-field="fecha_final"     tabindex="0">${it.fecha_final ?? ''}</td>
           <td data-field="hora_inicio"     tabindex="0">${it.hora_inicio ?? ''}</td>
           <td data-field="hora_final"      tabindex="0">${it.hora_final ?? ''}</td>
-          <td data-field="no_op"           tabindex="0">${it.no_op ?? ''}</td>
-          <td data-field="sci_ref"         tabindex="0">${it.sci_ref ?? ''}</td>
-          <td data-field="descripcion_referencia" tabindex="0">${it.descripcion_referencia ?? ''}</td>
+          <td data-field="no_op"           class="${it.no_op === 'N/A' ? 'ro' : ''}" tabindex="0">${it.no_op ?? ''}</td>
+          <td data-field="sci_ref"         class="${it.sci_ref === 'N/A' ? 'ro' : ''}" tabindex="0">${it.sci_ref ?? ''}</td>
+          <td data-field="descripcion_referencia" class="ro" tabindex="0">${it.descripcion_referencia ?? ''}</td>
           <td data-field="estado_sci"      tabindex="0">${renderEstadoSelect(it.estado_sci)}</td>
-          <td data-field="cantidad"        tabindex="0">${it.cantidad ?? 0}</td>
-          <td data-field="area"            tabindex="0">${it.area ?? ''}</td>
-          <td data-field="maquina"         tabindex="0">${it.maquina ?? ''}</td>
+          <td data-field="cantidad"        class="${it.cantidad === 0 ? 'ro' : ''}" tabindex="0">${it.cantidad ?? 0}</td>
+          <td data-field="area"            class="${it.area === 'N/A' ? 'ro' : ''}" tabindex="0">${it.area ?? ''}</td>
+          <td data-field="maquina"         class="${it.maquina === 'N/A' ? 'ro' : ''}" tabindex="0">${it.maquina ?? ''}</td>
           <td data-field="horario"         tabindex="0">${renderHorarioSelect(it.horario)}</td>
           <td data-field="observaciones"   tabindex="0">${renderObservacionSelect(it.observaciones)}</td>
         `;
@@ -450,6 +551,10 @@ async function cargar(q = '') {
     if (info) info.textContent = `${from}–${to} de ${total}`;
     if (btnPrev) btnPrev.disabled = offset === 0;
     if (btnNext) btnNext.disabled = offset + count >= total;
+
+    // RESTAURA LA POSICIÓN DEL SCROLL
+    window.scrollTo(0, scrollY);
+
 
   } catch (e) {
     if (e.name === 'AbortError') return; // se canceló por nueva búsqueda
@@ -500,13 +605,13 @@ function placeCaretEnd(el) {
   sel.addRange(range);
 }
 
-async function mutateUpdate(cc, patch) {
+async function mutateUpdate(id, patch) {
   const m = `
-    mutation ($cc: ID!, $patch: FormularioPatch!) {
-      updateFormulario(cc: $cc, patch: $patch) { cc }
+    mutation ($id: ID!, $patch: FormularioPatch!) {
+      updateFormulario(id: $id, patch: $patch) { id }
     }
   `;
-  await gql(m, { cc, patch });
+  await gql(m, { id, patch });
 }
 
 function enableEdit(td) {
@@ -526,7 +631,6 @@ function disableEdit(td) {
 }
 
 function attachInlineEditingDblClick() {
-  // selección visual en click (sin editar)
   // Click: seleccionar celda (opcional)
   lista.addEventListener('click', (e) => {
     const td = e.target.closest('td');
@@ -535,27 +639,25 @@ function attachInlineEditingDblClick() {
     td.classList.add('selected');
   });
 
-  // Doble-click en OP o SCI abre el mismo editor (arranca anclado al td de OP)
+  // Doble-click para abrir el editor apropiado
   lista.addEventListener('dblclick', (e) => {
     const td = e.target.closest('td');
-    if (!td) return;
+    if (!td || td.classList.contains('ro')) return;
 
     const field = td.dataset.field;
 
-    // Caso especial para el editor OP/SCI
     if (field === 'no_op' || field === 'sci_ref') {
       const tdNoOp = td.closest('tr').querySelector('td[data-field="no_op"]');
-      if (tdNoOp) {
-        openOpSciEditor(tdNoOp);
-      }
-    }
-    // Caso general para todos los demás campos editables
-    else {
+      if (tdNoOp) openOpSciEditor(tdNoOp);
+    } else if (field === 'area' || field === 'maquina') {
+      const tdArea = td.closest('tr').querySelector('td[data-field="area"]');
+      if (tdArea) openAreaMaquinaEditor(tdArea);
+    } else {
       startCellEdit(td);
     }
   });
 
-  // F2 también
+  // F2 para abrir el editor de OP/SCI
   lista.addEventListener('keydown', (e) => {
     if (e.key !== 'F2') return;
     const td = e.target.closest('td');
@@ -567,49 +669,45 @@ function attachInlineEditingDblClick() {
     }
   });
 
-
-  // Teclas dentro de la celda editable
+  // Teclas dentro de la celda editable (contenteditable)
   lista.addEventListener('keydown', (e) => {
     const td = e.target.closest('td[contenteditable="true"]');
     if (!td) return;
 
-    if (e.key === 'Enter') {          // guardar
+    if (e.key === 'Enter') {
       e.preventDefault();
       td.blur();
-    } else if (e.key === 'Escape') {  // cancelar
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       td.textContent = td.dataset.orig || '';
       td.blur();
     }
   });
 
-  // Blur = commit/cancel según cambios
+  // Guardar al salir de la celda editable (blur)
   lista.addEventListener('blur', async (e) => {
     const td = e.target.closest('td[contenteditable="true"]');
     if (!td) return;
 
+    const tr = td.closest('tr');
+    if (!tr) return;
+
+    const id = tr.dataset.id;
     const orig = (td.dataset.orig || '').trim();
     const val = td.textContent.trim();
     const field = td.dataset.field;
-    const tr = td.closest('tr');
-    const cc = tr?.dataset.cc;
 
-    // sale del modo edición
     disableEdit(td);
 
-    if (val === orig) return; // sin cambios
+    if (val === orig) return;
 
     try {
-      // validaciones mínimas
       if (field === 'cantidad' && val !== '' && isNaN(Number(val))) {
         throw new Error('Debe ser numérico');
       }
-
       td.classList.add('saving');
-      const patch = {};
-      patch[field] = (val === '' ? null : field === 'cantidad' ? Number(val) : val);
-      await mutateUpdate(cc, patch);
-
+      const patch = { [field]: (val === '' ? null : field === 'cantidad' ? Number(val) : val) };
+      await mutateUpdate(id, patch);
       td.classList.remove('saving');
       td.classList.add('saved');
       setTimeout(() => td.classList.remove('saved'), 600);
@@ -617,24 +715,32 @@ function attachInlineEditingDblClick() {
       console.error('Update error:', err);
       td.classList.remove('saving');
       td.classList.add('error');
-      td.textContent = orig; // revertir
+      td.textContent = orig;
       setTimeout(() => td.classList.remove('error'), 800);
     }
-  }, true); // usar capture para asegurar el blur
+  }, true);
 
   lista.addEventListener('change', async (e) => {
-    // Busca cualquier select con un data-field
     const sel = e.target.closest('select[data-field]');
     if (!sel) return;
 
+    // Define 'tr' primero
     const tr = sel.closest('tr');
-    const cc = tr?.dataset.cc;
-    const field = sel.dataset.field; // Ahora obtiene el data-field correcto
+    if (!tr) return;
+
+    // Ahora obtén el 'id' y los demás datos
+    const id = tr.dataset.id;
+    const field = sel.dataset.field;
     const val = sel.value;
+
+    if (!id) {
+      console.error("No se pudo encontrar el 'id' de la fila para el select.");
+      return;
+    }
 
     try {
       sel.disabled = true;
-      await mutateUpdate(cc, { [field]: val });
+      await mutateUpdate(id, { [field]: val });
       sel.disabled = false;
       sel.classList.add('saved');
       setTimeout(() => sel.classList.remove('saved'), 600);
@@ -646,27 +752,19 @@ function attachInlineEditingDblClick() {
     }
   });
 
+  // Listener para el botón de limpiar filtros
   btnClear?.addEventListener('click', () => {
-    // limpia buscador
     inputQ.value = '';
-
-    // limpia picker (si usas Litepicker)
     if (pickerEl._litepicker) {
       pickerEl._litepicker.clearSelection();
     } else {
       pickerEl.value = '';
     }
-
-    // reset globales
     dateFrom = '';
     dateTo = '';
     offset = 0;
-
-    // recargar datos sin filtros
     cargar('');
   });
-
-
 }
 
 // Llama esto cada vez que renders tu tabla
@@ -701,6 +799,11 @@ selPageSize?.addEventListener('change', (e) => {
 // Arranque
 cargar('');
 
+setInterval(() => {
+  console.log('Actualizando datos automáticamente...');
+  cargar(inputQ.value.trim());
+}, 30000);
+
 
 // --------------------------CONTROL OP FILTRO---------------------------------------------------------------
 // --- helpers ---
@@ -724,21 +827,16 @@ async function apiRefPorOpSci(op, sci) {
   return refPorOpSci?.descripcion || '';
 }
 
-async function apiUpdateFormulario(cc, patch) {
-  const m = `mutation($cc:ID!, $patch:FormularioPatch!){
-    updateFormulario(cc:$cc, patch:$patch){
-      cc no_op sci_ref descripcion_referencia
-    }
-  }`;
-  const data = await gql(m, { cc, patch });
-  return data.updateFormulario;
-}
-
-
 //----editor embebido------
 // Cierra cualquier editor abierto
+
 function closeAnyOpSciEditor() {
+  // Elimina cualquier editor abierto
   document.querySelectorAll('.op-sci-editor').forEach(n => n.remove());
+  // Elimina cualquier fondo oscuro (overlay)
+  document.querySelectorAll('.editor-overlay').forEach(n => n.remove());
+  // Quita el resaltado de cualquier fila
+  document.querySelectorAll('tr.editing-row').forEach(r => r.classList.remove('editing-row'));
 }
 
 // Crea y abre el editor sobre la celda de OP
@@ -748,7 +846,7 @@ function openOpSciEditor(tdNoOp) {
   const tr = tdNoOp.closest('tr');
   const tdSci = tr.querySelector('td[data-field="sci_ref"]');
   const tdDR = tr.querySelector('td[data-field="descripcion_referencia"]');
-  const cc = tr.dataset.cc;
+  const id = tr.dataset.id;
 
   const currOP = (tdNoOp.textContent || '').trim();
   const currSCI = (tdSci?.textContent || '').trim();
@@ -787,6 +885,9 @@ function openOpSciEditor(tdNoOp) {
   host.style.top = (rect.bottom + scrollTop) + 'px';
   host.style.zIndex = 9999;
   document.body.appendChild(host);
+  const overlay = document.createElement('div');
+  overlay.className = 'editor-overlay';
+  document.body.appendChild(overlay);
 
   const $opI = host.querySelector('.op-input');
   const $opBox = host.querySelector('.op-suggestions');
@@ -804,6 +905,12 @@ function openOpSciEditor(tdNoOp) {
   $opI.value = chosenOP;
   $sciI.value = chosenSCI;
   $drOut.value = descRef;
+
+  function closeEditor() {
+    tr.classList.remove('editing-row');
+    host.remove();
+    overlay.remove();
+  }
 
   // --- Función renderSciSuggestions (sin cambios, pero ahora se usa con `click`) ---
   function renderSciSuggestions(list) {
@@ -832,7 +939,7 @@ function openOpSciEditor(tdNoOp) {
       const row = document.createElement('div');
       row.className = 'sugg-item';
       row.textContent = op;
-      // ✅ CAMBIO CLAVE: Usamos 'click' en lugar de 'mousedown'
+
       row.addEventListener('click', (ev) => {
         chooseOP(op);
       });
@@ -852,7 +959,7 @@ function openOpSciEditor(tdNoOp) {
     $sciI.placeholder = 'Cargando SCIs...';
     sciPool = await apiBuscarSciPorOp(chosenOP, '', 200);
 
-    // ✅ CAMBIO CLAVE: Muestra las sugerencias de SCI automáticamente
+    // Muestra las sugerencias de SCI automáticamente
     renderSciSuggestions(sciPool);
 
     $sciI.placeholder = 'Haga clic para seleccionar SCI';
@@ -872,62 +979,67 @@ function openOpSciEditor(tdNoOp) {
   }
 
   async function save() {
+    const id = tr.dataset.id;
+    if (!id) {
+      console.error("Error crítico: No se encontró el 'id' de la fila para guardar.");
+      return;
+    }
 
-    console.log('Función save() INICIADA');
-    // 1. Validación inicial (sin cambios)
     if (!chosenOP || !chosenSCI) {
       host.querySelector('.op-sci-box').classList.add('opsi-error');
       setTimeout(() => host.querySelector('.op-sci-box').classList.remove('opsi-error'), 800);
       return;
     }
 
-    // Deshabilitar botones para evitar doble clic
     $btnOk.disabled = true;
     $btnKo.disabled = true;
     $btnOk.textContent = 'Guardando...';
 
     try {
-      // 2. Verificación y mutación (dentro del `try`)
       const realDR = await apiRefPorOpSci(chosenOP, chosenSCI) || '';
 
-      await apiUpdateFormulario(cc, {
+      // CORRECCIÓN: Llama a la función correcta 'mutateUpdate'
+      await mutateUpdate(id, {
         no_op: chosenOP,
         sci_ref: chosenSCI,
         descripcion_referencia: realDR
       });
 
-      // 3. ÉXITO: Si llegamos aquí, todo salió bien.
-      // Ahora actualizamos la tabla.
+      // Actualiza la tabla visualmente
       tdNoOp.textContent = chosenOP;
-      if (tdSci) tdSci.textContent = chosenSCI;
-      if (tdDR) tdDR.textContent = realDR;
+      tdSci.textContent = chosenSCI;
+      tdDR.textContent = realDR;
 
-      // Feedback visual de éxito
+      // Feedback y cierre
       tdNoOp.classList.add('saved');
       setTimeout(() => tdNoOp.classList.remove('saved'), 800);
-
-      closeAnyOpSciEditor(); // Cierra el editor solo si fue exitoso
+      closeEditor();
 
     } catch (err) {
-      // 4. ERROR: Si algo falló, lo atrapamos aquí.
-      console.error("Error al guardar:", err); // Muestra el error en la consola
-
-      // Feedback visual de error
+      console.error("Error al guardar OP/SCI:", err);
       host.querySelector('.op-sci-box').classList.add('opsi-error');
       setTimeout(() => host.querySelector('.op-sci-box').classList.remove('opsi-error'), 1000);
-
-      // El editor NO se cierra, para que el usuario pueda intentarlo de nuevo.
-
     } finally {
-      // 5. FINALMENTE: Este bloque se ejecuta siempre, haya error o no.
-      // Reactivamos los botones.
-      $btnOk.disabled = false;
-      $btnKo.disabled = false;
-      $btnOk.textContent = 'Guardar (Enter)';
+      $btnOk.addEventListener('click', save);
+      $btnKo.addEventListener('click', closeEditor);
+      overlay.addEventListener('click', closeEditor);
     }
-  }
-  function cancel() {
-    closeAnyOpSciEditor();
+
+    host.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); closeEditor(); } // ✅ CORREGIDO
+    });
+
+    setTimeout(() => {
+      const onDoc = (ev) => {
+        if (!host.contains(ev.target)) {
+          closeEditor(); // ✅ CORREGIDO
+          document.removeEventListener('mousedown', onDoc);
+        }
+      };
+      document.addEventListener('mousedown', onDoc);
+    }, 0);
+
   }
 
   // --- Eventos UI (Modificados) ---
@@ -983,6 +1095,177 @@ function openOpSciEditor(tdNoOp) {
       sciPool = await apiBuscarSciPorOp(currOP, '', 200);
     } else {
       $opI.focus();
+    }
+  })();
+}
+
+// ---------------------------CT PN  y MÁQUINAS-------------------------------
+async function apiGetCtpnList() {
+  const q = `query { ctpnList }`;
+  const { ctpnList } = await gql(q);
+  return ctpnList || [];
+}
+
+async function apiGetMaquinasPorCtpn(ctpn) {
+  const q = `query($ctpn: String!) { maquinasPorCtpn(ctpn: $ctpn) }`;
+  const { maquinasPorCtpn } = await gql(q, { ctpn });
+  return maquinasPorCtpn || [];
+}
+
+
+function openAreaMaquinaEditor(tdArea) {
+  closeAnyOpSciEditor(); // Cierra cualquier otro editor que esté abierto
+
+  const tr = tdArea.closest('tr');
+  const tdMaquina = tr.querySelector('td[data-field="maquina"]');
+  const cc = tr.dataset.cc;
+  const id = tr.dataset.id;
+
+  // Resaltar la fila actual
+  tr.classList.add('editing-row');
+
+  // Valores actuales de la tabla
+  const currArea = tdArea.textContent.trim();
+  const currMaquina = tdMaquina.textContent.trim();
+
+  // Crear el HTML del editor
+  const host = document.createElement('div');
+  host.className = 'op-sci-editor';
+  host.innerHTML = `
+    <div class="ctpn-maq-box">
+      <label>Área (CT Pn)</label>
+      <select class="area-select" disabled>
+        <option>Cargando áreas...</option>
+      </select>
+
+      <label>Máquina</label>
+      <select class="maquina-select" disabled>
+        <option>Seleccione un área...</option>
+      </select>
+
+      <div class="opsi-actions">
+        <button class="btn-cancel">Cancelar</button>
+        <button class="btn-save">Guardar</button>
+      </div>
+    </div>
+  `;
+
+  // Posicionamiento centrado y overlay
+  host.style.position = 'fixed';
+  host.style.left = '50%';
+  host.style.top = '50%';
+  host.style.transform = 'translate(-50%, -50%) scale(0.95)';
+  host.style.zIndex = 10001;
+  document.body.appendChild(host);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'editor-overlay';
+  document.body.appendChild(overlay);
+
+  // Referencias a los elementos del editor
+  const $areaSelect = host.querySelector('.area-select');
+  const $maquinaSelect = host.querySelector('.maquina-select');
+  const $btnOk = host.querySelector('.btn-save');
+  const $btnKo = host.querySelector('.btn-cancel');
+
+
+  /**
+   * Carga las máquinas para un área específica y selecciona una si se provee.
+   * @param {string} areaSeleccionada - El área (CTPn) por la cual filtrar.
+   * @param {string | null} maquinaActual - La máquina que debe quedar seleccionada.
+   */
+  async function cargarMaquinas(areaSeleccionada, maquinaActual = null) {
+    $maquinaSelect.innerHTML = `<option>Cargando máquinas...</option>`;
+    $maquinaSelect.disabled = true;
+
+    // Si no hay un área seleccionada, resetea el select de máquinas.
+    if (!areaSeleccionada) {
+      $maquinaSelect.innerHTML = `<option value="">Seleccione un área...</option>`;
+      return;
+    }
+
+    const maquinas = await apiGetMaquinasPorCtpn(areaSeleccionada);
+
+    $maquinaSelect.innerHTML = `<option value="">Seleccione una máquina...</option>`;
+    maquinas.forEach(m => {
+      const esSeleccionada = m === maquinaActual;
+      const optionHTML = `<option value="${m}" ${esSeleccionada ? 'selected' : ''}>${m}</option>`;
+      $maquinaSelect.innerHTML += optionHTML;
+    });
+    $maquinaSelect.disabled = false;
+  }
+
+  // Evento: cuando el usuario cambia el área, recarga las máquinas.
+  $areaSelect.addEventListener('change', () => {
+    const nuevaArea = $areaSelect.value;
+    cargarMaquinas(nuevaArea); // Simplemente llama a la función de carga
+  });
+
+  // --- Lógica de Guardado y Cancelación (Sin cambios) ---
+
+  function closeEditor() {
+    tr.classList.remove('editing-row');
+    host.remove();
+    overlay.remove();
+  }
+
+  async function save() {
+    const id = tr.dataset.id;
+    const nuevaArea = $areaSelect.value;
+    const nuevaMaquina = $maquinaSelect.value;
+
+    if (!nuevaArea || !nuevaMaquina) {
+      host.querySelector('.op-sci-box').classList.add('opsi-error');
+      setTimeout(() => host.querySelector('.op-sci-box').classList.remove('opsi-error'), 500);
+      return;
+    }
+
+    $btnOk.disabled = true;
+    $btnOk.textContent = 'Guardando...';
+
+    try {
+      await mutateUpdate(id, { area: nuevaArea, maquina: nuevaMaquina });
+
+      tdArea.textContent = nuevaArea;
+      tdMaquina.textContent = nuevaMaquina;
+
+      tdArea.classList.add('saved');
+      setTimeout(() => tdArea.classList.remove('saved'), 800);
+
+      closeEditor();
+    } catch (err) {
+      console.error("Error al guardar área/máquina:", err);
+      $btnOk.disabled = false;
+      $btnOk.textContent = 'Guardar';
+    }
+  }
+
+
+
+  $btnOk.addEventListener('click', save);
+  $btnKo.addEventListener('click', closeEditor);
+  overlay.addEventListener('click', closeEditor);
+
+  // --- Carga Inicial de Datos (Mejorada) ---
+  (async () => {
+    try {
+      // 1. Carga la lista completa de áreas
+      const areas = await apiGetCtpnList();
+      $areaSelect.innerHTML = `<option value="">Seleccione un área...</option>`;
+      areas.forEach(a => {
+        const esSeleccionada = a === currArea;
+        const optionHTML = `<option value="${a}" ${esSeleccionada ? 'selected' : ''}>${a}</option>`;
+        $areaSelect.innerHTML += optionHTML;
+      });
+      $areaSelect.disabled = false;
+
+      // 2. Si ya hay un área en la fila, carga sus máquinas correspondientes
+      if (currArea) {
+        await cargarMaquinas(currArea, currMaquina);
+      }
+    } catch (err) {
+      console.error("Error al inicializar el editor de Área/Máquina:", err);
+      $areaSelect.innerHTML = `<option>Error al cargar</option>`;
     }
   })();
 }

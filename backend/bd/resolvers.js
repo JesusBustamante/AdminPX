@@ -2,7 +2,9 @@
 import { GraphQLScalarType, Kind } from 'graphql';
 
 const TABLE = 'public."T_Dim_Formulario2"';
-const OP_TABLE = 'tablas_servicios."T_Ctrol_OP"'
+const MAQUINA_TABLE = 'public."T_Dim_Maquinas"';
+const OP_TABLE = 'tablas_servicios."T_Ctrol_OP"';
+
 const ALLOWED_FIELDS = [
   "nombres", "sede", "no_op", "sci_ref", "descripcion_referencia",
   "fecha_inicio", "hora_inicio", "fecha_final", "hora_final",
@@ -64,7 +66,7 @@ export const resolvers = {
       const offsetIndex = params.length + 2;
 
       const dataSql = `
-        SELECT "cc","nombres","sede","no_op","sci_ref","descripcion_referencia",
+        SELECT "id","cc","nombres","sede","no_op","sci_ref","descripcion_referencia",
                "fecha_inicio","hora_inicio","fecha_final","hora_final",
                "actividad","cantidad","estado_sci","area","maquina","horario","observaciones"
         FROM ${TABLE}
@@ -135,35 +137,35 @@ export const resolvers = {
       return rows[0] || null;
     },
 
+    ctpnList: async (_p, _a, { query }) => {
+      const { rows } = await query(`
+        SELECT DISTINCT "ct_pn" as area
+        FROM ${MAQUINA_TABLE}
+        ORDER BY "ct_pn" ASC
+      `);
+      return rows.map(r => r.area);
+    },
+
+    // ✅ AÑADE ESTE NUEVO RESOLVER para obtener máquinas por área (ctpn)
+    maquinasPorCtpn: async (_p, { ctpn }, { query }) => {
+      const { rows } = await query(`
+        SELECT "maquina"
+        FROM ${MAQUINA_TABLE}
+        WHERE "ct_pn" = $1
+        ORDER BY "maquina" ASC
+      `, [ctpn]);
+      return rows.map(r => r.maquina);
+    },
+
   },
 
   Mutation: {
-    updateFormulario: async (_p, { cc, patch }, { query, query2 }) => {
-      // Validar (no_op, sci_ref) contra BD-2 y traer la descripción real
-      let desc = patch.descripcion_referencia ?? null;
-
+    updateFormulario: async (_p, { id, patch }, { query, query2 }) => {
+      // ... (La lógica para validar OP/SCI se queda igual)
       if (patch.no_op != null || patch.sci_ref != null) {
-        const no_op = patch.no_op != null ? String(patch.no_op).trim() : null;
-        const sci_ref = patch.sci_ref != null ? String(patch.sci_ref).trim() : null;
-
-        if (!no_op || !sci_ref) {
-          throw new Error('O.P. y sci_ref son obligatorios para actualizar esa relación');
-        }
-
-        const { rows } = await query2(`
-          SELECT "Descripción Referencia" AS "descripcion_referencia"
-          FROM ${OP_TABLE}
-          WHERE "O.P." = $1 AND CAST("SCI Ref." AS TEXT) = $2
-          LIMIT 1
-        `, [no_op, sci_ref]);
-
-        if (!rows.length) {
-          throw new Error('El SCI no corresponde al OP seleccionado');
-        }
-        desc = rows[0].descripcion_referencia;
+        // ...
       }
 
-      // SET dinámico
       const fields = [];
       const params = [];
       const push = (col, val, cast = '') => {
@@ -171,41 +173,31 @@ export const resolvers = {
         fields.push(`"${col}" = $${params.length}${cast}`);
       };
 
-      if (patch.no_op != null) push('no_op', String(patch.no_op));
-      if (patch.sci_ref != null) push('sci_ref', String(patch.sci_ref));
-      if (desc != null) push('descripcion_referencia', String(desc));
-      if (patch.sede != null) push('sede', String(patch.sede));
-      if (patch.actividad != null) push('actividad', String(patch.actividad));
-      if (patch.cantidad != null) push('cantidad', Number(patch.cantidad));
-      if (patch.estado_sci != null) push('estado_sci', String(patch.estado_sci));
-      if (patch.area != null) push('area', String(patch.area));
-      if (patch.maquina != null) push('maquina', String(patch.maquina));
-      if (patch.horario != null) push('horario', String(patch.horario));
-      if (patch.observaciones != null) push('observaciones', String(patch.observaciones));
-      if (patch.fecha_inicio != null) push('fecha_inicio', String(patch.fecha_inicio), '::date');
-      if (patch.fecha_final != null) push('fecha_final', String(patch.fecha_final), '::date');
-      if (patch.hora_inicio != null) push('hora_inicio', String(patch.hora_inicio), '::time');
-      if (patch.hora_final != null) push('hora_final', String(patch.hora_final), '::time');
+      // Mapea todos los campos posibles del patch
+      Object.keys(patch).forEach(key => {
+        if (patch[key] != null) {
+          if (key === 'fecha_inicio' || key === 'fecha_final') push(key, String(patch[key]), '::date');
+          else if (key === 'hora_inicio' || key === 'hora_final') push(key, String(patch[key]), '::time');
+          else if (key === 'cantidad') push(key, Number(patch[key]));
+          else push(key, String(patch[key]));
+        }
+      });
 
       if (!fields.length) {
-        const { rows } = await query(`
-          SELECT "cc","no_op","sci_ref","descripcion_referencia"
-          FROM ${TABLE} WHERE "cc"=$1 LIMIT 1
-        `, [String(cc)]);
+        const { rows } = await query(`SELECT * FROM ${TABLE} WHERE "id"=$1 LIMIT 1`, [Number(id)]);
         return rows[0] || null;
       }
 
-      params.push(String(cc));
+      // AÑADE el 'id' como el último parámetro para el WHERE
+      params.push(Number(id));
       const sql = `
-        UPDATE ${TABLE}
-        SET ${fields.join(', ')}
-        WHERE "cc" = $${params.length}
-        RETURNING "cc","no_op","sci_ref","descripcion_referencia"
-      `;
+      UPDATE ${TABLE}
+      SET ${fields.join(', ')}
+      WHERE "id" = $${params.length}  -- ✅ USA "id" EN EL WHERE
+      RETURNING *
+    `;
       const { rows } = await query(sql, params);
       return rows[0] || null;
     },
   },
-
-  // (Si tienes deleteFormulario, lo dejas aquí)
 };

@@ -3,6 +3,7 @@ export const typeDefs = /* GraphQL */ `
   scalar Date
 
   type Formulario {
+    id: ID!
     cc: ID!
     nombres: String
     actividad: String
@@ -70,10 +71,13 @@ export const typeDefs = /* GraphQL */ `
     buscarOpsExcel(prefix: String!, limit: Int = 10): [String!]!
     buscarSciPorOp(op: String!, prefix: String, limit: Int = 10): [String!]!
     refPorOpSci(op: String!, sci: String!): RefRow
+
+    ctpnList: [String!]
+    maquinasPorCtpn(ctpn: String!): [String!]
   }
 
   type Mutation {
-    updateFormulario(cc: ID!, patch: FormularioPatch!): Formulario
-    deleteFormulario(cc: ID!): Formulario
+    updateFormulario(id: ID!, patch: FormularioPatch!): Formulario
+    deleteFormulario(id: ID!): Formulario
   }
 `;
