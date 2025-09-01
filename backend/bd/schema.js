@@ -42,6 +42,11 @@ export const typeDefs = /* GraphQL */ `
     observaciones: String
   }
 
+  input FormularioUpdateInput {
+    id: ID!
+    patch: FormularioPatch!
+  }
+
   type FormulariosResult {
     items: [Formulario!]!
     count: Int!
@@ -63,6 +68,8 @@ export const typeDefs = /* GraphQL */ `
       q: String
       dateFrom: String   # YYYY-MM-DD
       dateTo: String     # YYYY-MM-DD
+      id: ID
+      no_op: String
     ): FormulariosResult!
 
     formulario(cc: ID!): Formulario
@@ -79,5 +86,7 @@ export const typeDefs = /* GraphQL */ `
   type Mutation {
     updateFormulario(id: ID!, patch: FormularioPatch!): Formulario
     deleteFormulario(id: ID!): Formulario
+
+    updateMultiplesFormularios(updates: [FormularioUpdateInput!]!): Boolean
   }
 `;

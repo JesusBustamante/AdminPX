@@ -24,17 +24,48 @@ export const resolvers = {
   }),
 
   Query: {
-    formularios: async (_p, { limit = 50, offset = 0, q, dateFrom, dateTo }, { query }) => {
+    formularios: async (_p, { limit = 50, offset = 0, q, dateFrom, dateTo, id, no_op }, { query }) => {
       const lim = Math.min(Math.max(limit, 1), 500);
       const off = Math.max(offset, 0);
 
       const where = [];
       const params = [];
 
+      // Filtro por ID (búsqueda flexible)
+      if (id && id.trim()) {
+        params.push(`%${id.trim()}%`);
+        where.push(`"id"::text ILIKE $${params.length}`);
+      }
+
+      // Filtro por ID (búsqueda exacta)
+      // if (id) {
+      //   params.push(Number(id));
+      //   where.push(`"id" = $${params.length}`);
+      // }
+
+      // Filtro por Número de OP (búsqueda flexible)
+      if (no_op && no_op.trim()) {
+        params.push(`%${no_op.trim()}%`);
+        where.push(`"no_op" ILIKE $${params.length}`);
+      }
+
       // Texto: nombres o cc
       if (q && q.trim()) {
-        params.push(`%${q.trim()}%`, `%${q.trim()}%`);
-        where.push(`("nombres" ILIKE $${params.length - 1} OR "cc"::text ILIKE $${params.length})`);
+        // 1. Divide la cadena de búsqueda en palabras individuales.
+        //    Ej: "mervin fuenmayor" -> ["mervin", "fuenmayor"]
+        const searchTerms = q.trim().split(/\s+/);
+
+        // 2. Crea una condición "ILIKE" para cada palabra.
+        //    -> `"nombres" ILIKE '%mervin%'`
+        //    -> `"nombres" ILIKE '%fuenmayor%'`
+        const nameConditions = searchTerms.map(term => {
+          params.push(`%${term}%`);
+          return `"nombres" ILIKE $${params.length}`;
+        }).join(' AND '); // 3. Únelas con AND para que deba cumplir todas.
+
+        // 4. Combina la búsqueda por nombre con la búsqueda por CC (que sigue siendo exacta/flexible con el texto completo)
+        params.push(`%${q.trim()}%`);
+        where.push(`((${nameConditions}) OR "cc"::text ILIKE $${params.length})`);
       }
 
       // Rango de fechas (estricto dentro del intervalo)
@@ -146,7 +177,7 @@ export const resolvers = {
       return rows.map(r => r.area);
     },
 
-    // ✅ AÑADE ESTE NUEVO RESOLVER para obtener máquinas por área (ctpn)
+    // obtener máquinas por área (ctpn)
     maquinasPorCtpn: async (_p, { ctpn }, { query }) => {
       const { rows } = await query(`
         SELECT "maquina"
@@ -161,7 +192,7 @@ export const resolvers = {
 
   Mutation: {
     updateFormulario: async (_p, { id, patch }, { query, query2 }) => {
-      // ... (La lógica para validar OP/SCI se queda igual)
+
       if (patch.no_op != null || patch.sci_ref != null) {
         // ...
       }
@@ -188,7 +219,6 @@ export const resolvers = {
         return rows[0] || null;
       }
 
-      // AÑADE el 'id' como el último parámetro para el WHERE
       params.push(Number(id));
       const sql = `
       UPDATE ${TABLE}
@@ -199,5 +229,50 @@ export const resolvers = {
       const { rows } = await query(sql, params);
       return rows[0] || null;
     },
+
+    updateMultiplesFormularios: async (_p, { updates }, { query }) => {
+      // Iniciamos una transacción para asegurar la integridad de los datos
+      await query('BEGIN');
+      try {
+        // Itera sobre cada cambio recibido y ejecuta la actualización
+        for (const update of updates) {
+          const { id, patch } = update;
+
+          const fields = [];
+          const params = [];
+          const push = (col, val, cast = '') => {
+            params.push(val);
+            fields.push(`"${col}" = $${params.length}${cast}`);
+          };
+
+          // Mapea todos los campos posibles del patch
+          Object.keys(patch).forEach(key => {
+            if (patch[key] != null) {
+              if (key === 'fecha_inicio' || key === 'fecha_final') push(key, String(patch[key]), '::date');
+              else if (key === 'hora_inicio' || key === 'hora_final') push(key, String(patch[key]), '::time');
+              else if (key === 'cantidad') push(key, Number(patch[key]));
+              else push(key, String(patch[key]));
+            }
+          });
+
+          if (fields.length > 0) {
+            params.push(Number(id));
+            const sql = `UPDATE ${TABLE} SET ${fields.join(', ')} WHERE "id" = $${params.length}`;
+            await query(sql, params);
+          }
+        }
+
+        // Si todo fue bien, confirma los cambios en la base de datos
+        await query('COMMIT');
+        return true;
+
+      } catch (e) {
+        // Si algo falló, revierte TODOS los cambios
+        await query('ROLLBACK');
+        console.error("Error en guardado múltiple, revirtiendo cambios:", e);
+        throw e; // Lanza el error para que el frontend lo reciba
+      }
+    },
   },
+
 };

@@ -17,6 +17,15 @@
 
     <h2 id="titulo">BIENVENIDO ADMINISTRADOR</h2>
 
+    <div class="save-container">
+        <a id="link-revertir" href="http://localhost:3000/">
+            <button id="btnRevertir">Revertir cambios</button>
+        </a>
+        
+        <button id="btnGuardar" disabled>Guardar Cambios</button>
+        <span id="saveStatus" data-status="saved">✅ Guardado</span>
+    </div>
+
     <input id="datepicker" type="text" placeholder="Selecciona un rango de fecha" readonly>
 
     <script>
@@ -25,6 +34,10 @@
             singleMode: false
         });
     </script>
+
+    <input type="number" id="filterById" placeholder="Escriba un ID...">
+
+    <input type="text" id="filterByNoOp" placeholder="Escriba un N° de OP...">
 
     <input type="text" id="q" placeholder="Nombre o Documento">
     <label for="q">
@@ -55,9 +68,9 @@
         <table id="grid" class="tabla">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th id="celdath-cc">CC</th>
-                    <th id="celdath-nombre">Nombre</th>
+                    <th class="sticky-col id-col">ID</th>
+                    <th class="sticky-col cc-col" id="celdath-cc">CC</th>
+                    <th class="sticky-col name-col" id="celdath-nombre">Nombre</th>
                     <th>Actividad</th>
                     <th>Sede</th>
                     <th>Fecha inicial</th>
@@ -77,7 +90,7 @@
             </thead>
             <tbody id="lista"></tbody>
         </table>
-        
+
     </div>
 
 </body>
